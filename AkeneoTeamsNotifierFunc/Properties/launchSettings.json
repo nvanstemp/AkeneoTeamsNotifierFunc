@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "AkeneoTeamsNotifierFunc": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7188",
+      "launchBrowser": false
+    }
+  }
+}
