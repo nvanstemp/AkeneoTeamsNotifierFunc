@@ -1,4 +1,5 @@
-using AppInsights.Core.Models;
+﻿using AppInsights.Core.Models;
+using AppInsights.Core.Services;
 using System.Text;
 
 namespace AkeneoTeamsNotifierFunc.Services
@@ -7,12 +8,14 @@ namespace AkeneoTeamsNotifierFunc.Services
     {
         private readonly HttpClient _httpClient;
         private readonly string _webhookUrl;
+        private readonly ILogTypeIdentifier _logTypeIdentifier;
         private const int MaxTeamsMessageLength = 1000; // Define the maximum length for a Teams message
 
-        public TeamsNotificationService(string webhookUrl)
+        public TeamsNotificationService(string webhookUrl, ILogTypeIdentifier logTypeIdentifier)
         {
             _webhookUrl = webhookUrl;
             _httpClient = new HttpClient();
+            _logTypeIdentifier = logTypeIdentifier;
         }
 
         public async Task SendNotificationAsync(Dictionary<LogType, IEnumerable<LogEntry>> logsByType)
@@ -100,7 +103,7 @@ namespace AkeneoTeamsNotifierFunc.Services
                     {
                         messageText = $"Part {i + 1}/{messages.Count}\n{messageText}";
                     }
-                    
+
                     if (messageText.Length > 0)
                     {
                         await SendTeamsMessageAsync(messageText);
@@ -111,26 +114,6 @@ namespace AkeneoTeamsNotifierFunc.Services
                     }
                 }
             }
-        }
-
-        private LogType DetermineLogType(string message)
-        {
-            // Group vendor-related issues together
-            if (message.Contains("Product is not assigned a vendor") || 
-                message.Contains("IsPublished") || 
-                message.Contains("Duplicate Model"))
-                return LogType.VendorIssues;
-
-            if (message.Contains("ERROR") || message.Contains("Failed"))
-                return LogType.Error;
-            if (message.Contains("Success"))
-                return LogType.Success;
-            if (message.Contains("Finished Sync Process"))
-                return LogType.SyncProcess;
-            if (message.Contains("Finished Translation Process"))
-                return LogType.TranslationProcess;
-            
-            return LogType.Other;
         }
 
         private string GetTitleForLogType(LogType logType) => logType switch
@@ -162,8 +145,8 @@ namespace AkeneoTeamsNotifierFunc.Services
             var message = new { text = messageText };
             var json = System.Text.Json.JsonSerializer.Serialize(message);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            
+
             await _httpClient.PostAsync(_webhookUrl, content);
         }
     }
-} 
+}

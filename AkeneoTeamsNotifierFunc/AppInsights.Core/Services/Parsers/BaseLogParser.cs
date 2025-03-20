@@ -1,15 +1,23 @@
 using System.Text.RegularExpressions;
 using AppInsights.Core.Models;
 
-namespace AppInsights.Core.Services
+namespace AppInsights.Core.Services.Parsers
 {
     public abstract class BaseLogParser : ILogParser
     {
         protected static readonly Regex VendorCodeRegex = new Regex(@"Code:\s*([^,\s]+)", RegexOptions.Compiled);
         protected static readonly Regex IssueRegex = new Regex(@"Issue:\s*(.+)$", RegexOptions.Compiled);
 
+        protected readonly LogType _logType;
+
+        protected BaseLogParser(LogType logType)
+        {
+            _logType = logType;
+        }
+
+        public LogType LogType => _logType;
+
         public abstract string Query { get; }
-        public abstract LogType LogType { get; }
 
         public virtual LogEntry ParseLog(DateTime timestamp, string originalMessage)
         {

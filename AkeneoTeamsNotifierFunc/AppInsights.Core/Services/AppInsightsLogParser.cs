@@ -10,21 +10,20 @@ namespace AppInsights.Core.Services
     public class AppInsightsLogParser
     {
         private readonly HttpClient _httpClient;
-        private static readonly string _appId = "3dd18304-53cf-4d7c-8c49-2417c15598dc";
-        private static readonly string _apiKey = "hk7dp6cjsfoh7vs2xaad3q1posf7d61b2886n312";
+        private readonly AppInsightsSettings _settings;
         private static readonly Regex VendorCodeRegex = new Regex(@"Code:\s*([^,\s]+)", RegexOptions.Compiled);
         private static readonly Regex IssueRegex = new Regex(@"Issue:\s*(.+)$", RegexOptions.Compiled);
         private readonly Dictionary<LogType, string> _queries;
-        private static readonly TimeSpan DefaultTimeSpan = TimeSpan.FromHours(1);
 
-        public AppInsightsLogParser(string connectionString)
+        public AppInsightsLogParser(AppInsightsSettings settings)
         {
+            _settings = settings;
             _httpClient = new HttpClient
             {
-                BaseAddress = new Uri("https://api.applicationinsights.io/v1/apps/")
+                BaseAddress = new Uri(_settings.BaseUrl)
             };
             
-            _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+            _httpClient.DefaultRequestHeaders.Add("x-api-key", _settings.ApiKey);
 
             _queries = new Dictionary<LogType, string>
             {
@@ -109,7 +108,7 @@ namespace AppInsights.Core.Services
             {
                 var encodedQuery = Uri.EscapeDataString(query);
                 var timespanParam = $"PT{timeSpan.TotalHours}H";
-                var url = $"{_appId}/query?timespan={timespanParam}&query={encodedQuery}";
+                var url = $"{_settings.AppId}/query?timespan={timespanParam}&query={encodedQuery}";
 
                 var response = await _httpClient.GetAsync(url);
                 response.EnsureSuccessStatusCode();
