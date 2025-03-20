@@ -1,9 +1,7 @@
-using Microsoft.ApplicationInsights;
-using Microsoft.ApplicationInsights.Extensibility;
 using AppInsights.Core.Models;
 using System.Text.RegularExpressions;
-using System.Net.Http;
 using System.Text.Json;
+using AppInsights.Core.Services.Parsers;
 
 namespace AppInsights.Core.Services
 {
@@ -13,88 +11,28 @@ namespace AppInsights.Core.Services
         private readonly AppInsightsSettings _settings;
         private static readonly Regex VendorCodeRegex = new Regex(@"Code:\s*([^,\s]+)", RegexOptions.Compiled);
         private static readonly Regex IssueRegex = new Regex(@"Issue:\s*(.+)$", RegexOptions.Compiled);
-        private readonly Dictionary<LogType, string> _queries;
+        private readonly ILogParserFactory _parserFactory;
 
-        public AppInsightsLogParser(AppInsightsSettings settings)
+        public AppInsightsLogParser(AppInsightsSettings settings, ILogParserFactory parserFactory)
         {
             _settings = settings;
+            _parserFactory = parserFactory;
             _httpClient = new HttpClient
             {
                 BaseAddress = new Uri(_settings.BaseUrl)
             };
             
             _httpClient.DefaultRequestHeaders.Add("x-api-key", _settings.ApiKey);
-
-            _queries = new Dictionary<LogType, string>
-            {
-                { LogType.VendorIssues, @"
-                    traces
-                    | where message contains ""Product is not assigned a vendor""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.IsPublished, @"
-                    traces
-                    | where message contains ""IsPublished""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.VendorFailedValidation, @"
-                    traces
-                    | where message contains ""Failed Validation""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.Error, @"
-                    traces
-                    | where message contains ""ERROR""
-                    | where message contains ""Failed""
-                    | where not(message contains ""0 failed"")
-                    | where not(message contains ""Failed Validation"")
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.DuplicateModel, @"
-                    traces
-                    | where message contains ""Duplicate Model""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.Success, @"
-                    traces
-                    | where message contains ""Success""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.SyncProcess, @"
-                    traces
-                    | where message contains ""Finished Sync""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" },
-
-                { LogType.TranslationProcess, @"
-                    traces
-                    | where message contains ""Finished Translation""
-                    | where timestamp > ago({0}h)
-                    | order by timestamp desc
-                    | project timestamp, message" }
-            };
         }
 
         public async Task<Dictionary<LogType, IEnumerable<LogEntry>>> GetTraceMessagesAsync(TimeSpan timeSpan)
         {
             var logsByType = new Dictionary<LogType, IEnumerable<LogEntry>>();
 
-            foreach (var (logType, query) in _queries)
+            foreach (LogType logType in Enum.GetValues(typeof(LogType)))
             {
-                var formattedQuery = string.Format(query, timeSpan.TotalHours);
+                var parser = _parserFactory.GetParser(logType);
+                var formattedQuery = string.Format(parser.Query, timeSpan.TotalHours);
                 var logs = await ExecuteQueryAsync(formattedQuery, timeSpan);
                 logsByType[logType] = logs;
             }
